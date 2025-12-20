@@ -1,21 +1,23 @@
 """
-Main application window for Image Compositor.
+Main application window for Image Compositor - UI definition only.
 """
 
-from pathlib import Path
-from PySide6.QtWidgets import QMainWindow, QFileDialog, QMessageBox, QStatusBar, QToolBar, QVBoxLayout, QWidget, QLabel
+from PySide6.QtWidgets import (
+    QMainWindow, QStatusBar, QToolBar, QVBoxLayout, QWidget, QLabel
+)
 from PySide6.QtGui import QAction, QKeySequence
 from PySide6.QtCore import Qt
 
 from .canvas_view import CanvasView
-from .helpers import get_image_filter_string, show_about_dialog, show_shortcuts_dialog, get_stylesheet
+from .main_window_toolbox import MainWindowToolbox
+from .helpers import show_about_dialog, show_shortcuts_dialog, get_stylesheet
+
 
 class MainWindow(QMainWindow):
-    """Main application window."""
+    """Main application window - UI definition only."""
 
     def __init__(self):
         super().__init__()
-        self.loaded_files = []
         self._setup_window()
         self._init_ui()
         self._apply_stylesheet()
@@ -28,6 +30,7 @@ class MainWindow(QMainWindow):
 
     def _init_ui(self):
         """Initialize the user interface."""
+        # Central widget
         central_widget = QWidget()
         self.setCentralWidget(central_widget)
 
@@ -38,9 +41,14 @@ class MainWindow(QMainWindow):
         self.canvas = CanvasView()
         layout.addWidget(self.canvas)
 
-        # Connect signals
-        self.canvas.image_added.connect(self._on_image_added)
-        self.canvas.image_removed.connect(self._on_image_removed)
+        self.toolbox = MainWindowToolbox(self)
+
+        # Update toolbox reference now that canvas exists
+        self.toolbox.canvas = self.canvas
+        # Connect canvas signals to toolbox methods
+        self.canvas.image_added.connect(self.toolbox.on_image_added)
+        self.canvas.image_removed.connect(self.toolbox.on_image_removed)
+
 
         # Create UI components
         self._create_menus()
@@ -69,17 +77,17 @@ class MainWindow(QMainWindow):
     def _add_file_menu_actions(self, menu):
         """Add actions to File menu."""
         actions = [
-            ("&Open Image...", QKeySequence.Open, self.open_image, None),
-            ("Open &Multiple Images...", "Ctrl+Shift+O", self.open_multiple_images, None),
-            (None, None, None, None),  # Separator
-            ("&Clear Canvas", "Ctrl+Shift+C", self.clear_canvas, None),
-            (None, None, None, None),  # Separator
+            ("&Open Image...", QKeySequence.Open, self.toolbox.open_image),
+            ("Open &Multiple Images...", "Ctrl+Shift+O", self.toolbox.open_multiple_images),
+            (None, None, None),  # Separator
+            ("&Clear Canvas", "Ctrl+Shift+C", self.toolbox.clear_canvas),
+            (None, None, None),  # Separator
             ("&Export...", "Ctrl+E", None, False),  # Disabled for now
-            (None, None, None, None),  # Separator
-            ("E&xit", QKeySequence.Quit, self.close, None)
+            (None, None, None),  # Separator
+            ("E&xit", QKeySequence.Quit, self.close)
         ]
 
-        for label, shortcut, handler, enabled in actions:
+        for label, shortcut, handler, *enabled in actions:
             if label is None:
                 menu.addSeparator()
             else:
@@ -88,25 +96,23 @@ class MainWindow(QMainWindow):
                     action.setShortcut(shortcut)
                 if handler:
                     action.triggered.connect(handler)
-                if enabled is not None:
-                    action.setEnabled(enabled)
+                if enabled:
+                    action.setEnabled(enabled[0])
                 menu.addAction(action)
 
     def _add_edit_menu_actions(self, menu):
         """Add actions to Edit menu."""
         actions = [
-            ("&Delete Selection", QKeySequence.Delete, self.delete_selection, None),
-            ("Delete All Images", "Ctrl+Shift+D", self.clear_canvas, None),
+            ("&Delete Selection", QKeySequence.Delete, self.toolbox.delete_selection),
+            ("Delete All Images", "Ctrl+Shift+D", self.toolbox.clear_canvas),
         ]
 
-        for label, shortcut, handler, enabled in actions:
+        for label, shortcut, handler in actions:
             action = QAction(label, self)
             if shortcut:
                 action.setShortcut(shortcut)
             if handler:
                 action.triggered.connect(handler)
-            if enabled is not None:
-                action.setEnabled(enabled)
             menu.addAction(action)
 
     def _add_view_menu_actions(self, menu):
@@ -153,11 +159,11 @@ class MainWindow(QMainWindow):
 
         # Toolbar actions
         toolbar_actions = [
-            ("Open", self.open_image),
-            ("Open Multiple", self.open_multiple_images),
+            ("Open", self.toolbox.open_image),
+            ("Open Multiple", self.toolbox.open_multiple_images),
             (None, None),  # Separator
-            ("Delete", self.delete_selection),
-            ("Clear All", self.clear_canvas),
+            ("Delete", self.toolbox.delete_selection),
+            ("Clear All", self.toolbox.clear_canvas),
             (None, None),  # Separator
             ("Zoom In", self.canvas.zoom_in),
             ("Zoom Out", self.canvas.zoom_out),
@@ -188,139 +194,37 @@ class MainWindow(QMainWindow):
 
         self.status_bar.showMessage("Ready - Drag and drop images or use File → Open")
 
-    def open_image(self):
-        """Open single image file dialog."""
-        filepath = self._get_filepath_single()
-        if filepath:
-            self._load_image_file(filepath)
-
-    def open_multiple_images(self):
-        """Open multiple image files at once."""
-        filepaths = self._get_filepaths_multiple()
-        if filepaths:
-            for filepath in filepaths:
-                self._load_image_file(filepath)
-
-    def _get_filepath_single(self) -> str:
-        """Get single file path from dialog."""
-        filepath, _ = QFileDialog.getOpenFileName(
-            self, "Open Image", "", get_image_filter_string()
-        )
-        return filepath if filepath else None
-
-    def _get_filepaths_multiple(self) -> list:
-        """Get multiple file paths from dialog."""
-        filepaths, _ = QFileDialog.getOpenFileNames(
-            self, "Open Multiple Images", "", get_image_filter_string()
-        )
-        return filepaths if filepaths else []
-
-    def _load_image_file(self, filepath: str):
-        """Load an image file and update UI."""
-        success = self.canvas.load_image(filepath)
-        if success:
-            self.loaded_files.append(Path(filepath))
-            self._update_window_title()
-
-    def delete_selection(self):
-        """Delete selected image(s)."""
-        selected_count = self.canvas.get_selected_count()
-        if selected_count == 0:
-            QMessageBox.information(self, "No Selection",
-                                   "No images are selected. Select an image by clicking on it.")
-            return
-
-        # Confirm deletion
-        if selected_count == 1:
-            message = "Delete the selected image?"
-        else:
-            message = f"Delete {selected_count} selected images?"
-
-        reply = QMessageBox.question(
-            self, "Delete Selection", message,
-            QMessageBox.Yes | QMessageBox.No,
-            QMessageBox.No
-        )
-
-        if reply == QMessageBox.Yes:
-            self.canvas.delete_selected()
-            self._update_selection_count()
-            self.status_bar.showMessage(f"Deleted {selected_count} image(s)", 3000)
-
-    def clear_canvas(self):
-        """Clear all images from canvas."""
-        if self.canvas.get_image_count() == 0:
-            return
-
-        reply = QMessageBox.question(
-            self, "Clear Canvas",
-            "Are you sure you want to clear all images from the canvas?",
-            QMessageBox.Yes | QMessageBox.No,
-            QMessageBox.No
-        )
-
-        if reply == QMessageBox.Yes:
-            self.canvas.clear_all()
-            self.loaded_files.clear()
-            self._update_window_title()
-            self._update_selection_count()
-            self.status_bar.showMessage("Canvas cleared", 3000)
-
-    def _update_window_title(self):
+    # UI update methods (called by toolbox)
+    def update_window_title(self):
         """Update window title based on loaded images."""
         count = self.canvas.get_image_count()
 
         if count == 0:
             self.setWindowTitle("Image Compositor - Basic Viewer")
-        elif count == 1 and self.loaded_files:
-            self.setWindowTitle(f"Image Compositor - {self.loaded_files[-1].name}")
+        elif count == 1 and self.toolbox.loaded_files:
+            self.setWindowTitle(f"Image Compositor - {self.toolbox.loaded_files[-1].name}")
         else:
             self.setWindowTitle(f"Image Compositor - {count} images")
-
-    def _on_image_added(self, filename: str, image_rect, position):
-        """Handle image added signal."""
-        # Update image count
-        count = self.canvas.get_image_count()
-        self.image_count_label.setText(f"Images: {count}")
-
-        # Show temporary message
-        img_name = Path(filename).name
-        self.status_bar.showMessage(
-            f"Loaded: {img_name} ({image_rect.width():.0f}×{image_rect.height():.0f})",
-            3000
-        )
-
-    def _on_image_removed(self, filepath: str):
-        """Handle image removed signal."""
-        # Remove from loaded files list
-        path = Path(filepath)
-        if path in self.loaded_files:
-            self.loaded_files.remove(path)
-
-        # Update image count
-        count = self.canvas.get_image_count()
-        self.image_count_label.setText(f"Images: {count}")
-        self._update_window_title()
 
     def _update_selection_count(self):
         """Update the selected count in status bar."""
         selected_count = self.canvas.get_selected_count()
         self.selected_count_label.setText(f"Selected: {selected_count}")
 
-    # Event handlers for selection changes
+    # Event handlers
+    def keyPressEvent(self, event):
+        """Handle key presses for delete."""
+        if event.key() == Qt.Key_Delete:
+            self.toolbox.delete_selection()
+        else:
+            super().keyPressEvent(event)
+
     def mousePressEvent(self, event):
         """Update selection count when clicking."""
         super().mousePressEvent(event)
         # Small delay to allow selection to update
         from PySide6.QtCore import QTimer
         QTimer.singleShot(10, self._update_selection_count)
-
-    def keyPressEvent(self, event):
-        """Handle key presses for delete."""
-        if event.key() == Qt.Key_Delete:
-            self.delete_selection()
-        else:
-            super().keyPressEvent(event)
 
     # Drag and drop support
     def dragEnterEvent(self, event):
