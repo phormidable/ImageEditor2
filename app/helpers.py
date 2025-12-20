@@ -2,10 +2,9 @@
 Helper functions, constants, and utilities for the Image Compositor app.
 """
 
-from PySide6.QtWidgets import QMessageBox, QFileDialog
+from PySide6.QtWidgets import QMessageBox
 from PySide6.QtGui import QPixmap, QPainter, QColor
 from PySide6.QtCore import Qt
-from typing import List, Optional
 
 # Image formats supported
 IMAGE_FORMATS = [

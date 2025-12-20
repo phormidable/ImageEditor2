@@ -2,9 +2,7 @@
 Main application window for Image Compositor - UI definition only.
 """
 
-from PySide6.QtWidgets import (
-    QMainWindow, QStatusBar, QToolBar, QVBoxLayout, QWidget, QLabel
-)
+from PySide6.QtWidgets import QMainWindow, QStatusBar, QToolBar, QVBoxLayout, QWidget, QLabel
 from PySide6.QtGui import QAction, QKeySequence
 from PySide6.QtCore import Qt
 
@@ -37,10 +35,9 @@ class MainWindow(QMainWindow):
         layout = QVBoxLayout(central_widget)
         layout.setContentsMargins(0, 0, 0, 0)
 
-        # Create canvas
+        # Create canvas, then the toolbox
         self.canvas = CanvasView()
         layout.addWidget(self.canvas)
-
         self.toolbox = MainWindowToolbox(self)
 
         # Update toolbox reference now that canvas exists
@@ -48,7 +45,6 @@ class MainWindow(QMainWindow):
         # Connect canvas signals to toolbox methods
         self.canvas.image_added.connect(self.toolbox.on_image_added)
         self.canvas.image_removed.connect(self.toolbox.on_image_removed)
-
 
         # Create UI components
         self._create_menus()
@@ -206,7 +202,7 @@ class MainWindow(QMainWindow):
         else:
             self.setWindowTitle(f"Image Compositor - {count} images")
 
-    def _update_selection_count(self):
+    def update_selection_count(self):
         """Update the selected count in status bar."""
         selected_count = self.canvas.get_selected_count()
         self.selected_count_label.setText(f"Selected: {selected_count}")
@@ -224,7 +220,7 @@ class MainWindow(QMainWindow):
         super().mousePressEvent(event)
         # Small delay to allow selection to update
         from PySide6.QtCore import QTimer
-        QTimer.singleShot(10, self._update_selection_count)
+        QTimer.singleShot(10, self.update_selection_count)
 
     # Drag and drop support
     def dragEnterEvent(self, event):

@@ -3,9 +3,8 @@ Toolbox containing business logic for MainWindow.
 """
 
 from pathlib import Path
-
 from PySide6.QtWidgets import QFileDialog, QMessageBox
-
+from .helpers import get_image_filter_string
 
 class MainWindowToolbox:
     """Contains business logic methods for MainWindow."""
@@ -30,8 +29,6 @@ class MainWindowToolbox:
 
     def _get_filepath_single(self):
         """Get single file path from dialog."""
-        from .helpers import get_image_filter_string
-
         filepath, _ = QFileDialog.getOpenFileName(
             self.main_window, "Open Image", "", get_image_filter_string()
         )
@@ -39,8 +36,6 @@ class MainWindowToolbox:
 
     def _get_filepaths_multiple(self):
         """Get multiple file paths from dialog."""
-        from .helpers import get_image_filter_string
-
         filepaths, _ = QFileDialog.getOpenFileNames(
             self.main_window, "Open Multiple Images", "", get_image_filter_string()
         )
@@ -51,7 +46,7 @@ class MainWindowToolbox:
         success = self.canvas.load_image(filepath)
         if success:
             self.loaded_files.append(Path(filepath))
-            self.main_window._update_window_title()
+            self.main_window.update_window_title()
 
     def delete_selection(self):
         """Delete selected image(s)."""
@@ -77,7 +72,7 @@ class MainWindowToolbox:
 
         if reply == QMessageBox.Yes:
             self.canvas.delete_selected()
-            self.main_window._update_selection_count()
+            self.main_window.update_selection_count()
             self.main_window.status_bar.showMessage(f"Deleted {selected_count} image(s)", 3000)
 
     def clear_canvas(self):
@@ -95,11 +90,11 @@ class MainWindowToolbox:
         if reply == QMessageBox.Yes:
             self.canvas.clear_all()
             self.loaded_files.clear()
-            self.main_window._update_window_title()
-            self.main_window._update_selection_count()
+            self.main_window.update_window_title()
+            self.main_window.pdate_selection_count()
             self.main_window.status_bar.showMessage("Canvas cleared", 3000)
 
-    def on_image_added(self, filename, image_rect, position):
+    def on_image_added(self, filename, image_rect, _position):
         """Handle image added signal."""
         # Update image count
         count = self.canvas.get_image_count()
