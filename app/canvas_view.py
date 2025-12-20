@@ -9,11 +9,19 @@ from PySide6.QtCore import Qt, QRectF, Signal, QPointF
 from .helpers import create_checkerboard_brush, is_image_file
 
 
+class ImageItem(QGraphicsPixmapItem):
+    """Custom image item that stores the filepath."""
+    def __init__(self, pixmap, filepath=""):
+        super().__init__(pixmap)
+        self.filepath = filepath
+
+
 class CanvasView(QGraphicsView):
     """Custom graphics view for the canvas with zoom and multiple image support."""
 
     # Signals
     image_added = Signal(str, QRectF, QPointF)  # filename, image_rect, position
+    image_removed = Signal(str)  # filename of removed image
 
     # Constants
     ZOOM_FACTOR = 1.25
@@ -73,7 +81,7 @@ class CanvasView(QGraphicsView):
                 return False
 
             # Create and position the image item
-            image_item = self._create_image_item(pixmap, position)
+            image_item = self._create_image_item(pixmap, filepath, position)
             self.scene.addItem(image_item)
             self.image_items.append(image_item)
 
@@ -90,9 +98,10 @@ class CanvasView(QGraphicsView):
             print(f"Failed to load image: {str(e)}")
             return False
 
-    def _create_image_item(self, pixmap: QPixmap, position: QPointF = None) -> QGraphicsPixmapItem:
-        """Create a QGraphicsPixmapItem with proper settings."""
-        image_item = QGraphicsPixmapItem(pixmap)
+    def _create_image_item(self, pixmap: QPixmap, filepath: str,
+                          position: QPointF = None) -> ImageItem:
+        """Create a custom ImageItem with proper settings."""
+        image_item = ImageItem(pixmap, filepath)
 
         # Set position
         if position is None:
@@ -105,7 +114,7 @@ class CanvasView(QGraphicsView):
 
         return image_item
 
-    def _calculate_center_position(self, image_item: QGraphicsPixmapItem) -> QPointF:
+    def _calculate_center_position(self, image_item: ImageItem) -> QPointF:
         """Calculate position to center image in view."""
         view_center = self.mapToScene(self.viewport().rect().center())
         img_rect = image_item.boundingRect()
@@ -195,10 +204,37 @@ class CanvasView(QGraphicsView):
             self.scale(1 / self.ZOOM_FACTOR, 1 / self.ZOOM_FACTOR)
             self.current_zoom /= self.ZOOM_FACTOR
 
+    def delete_selected(self):
+        """Delete all selected image items."""
+        selected_items = self.scene.selectedItems()
+        if not selected_items:
+            return
+
+        # Remove selected items
+        for item in selected_items:
+            if item in self.image_items:
+                # Emit signal before removal
+                if hasattr(item, 'filepath'):
+                    self.image_removed.emit(item.filepath)
+
+                # Remove from scene and tracking list
+                self.scene.removeItem(item)
+                self.image_items.remove(item)
+
+        # Update UI state
+        if not self.image_items:
+            self._add_welcome_message()
+
+        self._update_scene_bounds()
+
     def clear_all(self):
         """Clear all images from canvas."""
         for item in self.image_items:
+            # Emit removal signals
+            if hasattr(item, 'filepath'):
+                self.image_removed.emit(item.filepath)
             self.scene.removeItem(item)
+
         self.image_items.clear()
         self._add_welcome_message()
         self.current_zoom = 1.0
@@ -207,6 +243,10 @@ class CanvasView(QGraphicsView):
     def get_image_count(self) -> int:
         """Return number of images on canvas."""
         return len(self.image_items)
+
+    def get_selected_count(self) -> int:
+        """Return number of selected images."""
+        return len(self.scene.selectedItems())
 
     # Drag and drop support
     def dragEnterEvent(self, event):

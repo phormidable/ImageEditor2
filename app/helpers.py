@@ -69,6 +69,8 @@ def show_shortcuts_dialog(parent) -> None:
     <tr><td><b>Ctrl+O</b></td><td>Open image</td></tr>
     <tr><td><b>Ctrl+Shift+O</b></td><td>Open multiple images</td></tr>
     <tr><td><b>Ctrl+Shift+C</b></td><td>Clear canvas</td></tr>
+    <tr><td><b>Delete</b></td><td>Delete selected image(s)</td></tr>
+    <tr><td><b>Ctrl+Shift+D</b></td><td>Delete all images</td></tr>
     <tr><td><b>Ctrl+E</b></td><td>Export (coming soon)</td></tr>
     <tr><td><b>Ctrl++</b></td><td>Zoom in</td></tr>
     <tr><td><b>Ctrl+-</b></td><td>Zoom out</td></tr>

@@ -2,22 +2,13 @@
 Main application window for Image Compositor.
 """
 
-import sys
 from pathlib import Path
-
-from PySide6.QtWidgets import (
-    QMainWindow, QFileDialog, QMessageBox, QStatusBar,
-    QToolBar, QVBoxLayout, QWidget, QLabel
-)
+from PySide6.QtWidgets import QMainWindow, QFileDialog, QMessageBox, QStatusBar, QToolBar, QVBoxLayout, QWidget, QLabel
 from PySide6.QtGui import QAction, QKeySequence
 from PySide6.QtCore import Qt
 
 from .canvas_view import CanvasView
-from .helpers import (
-    get_image_filter_string, show_about_dialog,
-    show_shortcuts_dialog, get_stylesheet
-)
-
+from .helpers import get_image_filter_string, show_about_dialog, show_shortcuts_dialog, get_stylesheet
 
 class MainWindow(QMainWindow):
     """Main application window."""
@@ -49,6 +40,7 @@ class MainWindow(QMainWindow):
 
         # Connect signals
         self.canvas.image_added.connect(self._on_image_added)
+        self.canvas.image_removed.connect(self._on_image_removed)
 
         # Create UI components
         self._create_menus()
@@ -61,6 +53,10 @@ class MainWindow(QMainWindow):
         # File menu
         file_menu = self.menuBar().addMenu("&File")
         self._add_file_menu_actions(file_menu)
+
+        # Edit menu
+        edit_menu = self.menuBar().addMenu("&Edit")
+        self._add_edit_menu_actions(edit_menu)
 
         # View menu
         view_menu = self.menuBar().addMenu("&View")
@@ -95,6 +91,23 @@ class MainWindow(QMainWindow):
                 if enabled is not None:
                     action.setEnabled(enabled)
                 menu.addAction(action)
+
+    def _add_edit_menu_actions(self, menu):
+        """Add actions to Edit menu."""
+        actions = [
+            ("&Delete Selection", QKeySequence.Delete, self.delete_selection, None),
+            ("Delete All Images", "Ctrl+Shift+D", self.clear_canvas, None),
+        ]
+
+        for label, shortcut, handler, enabled in actions:
+            action = QAction(label, self)
+            if shortcut:
+                action.setShortcut(shortcut)
+            if handler:
+                action.triggered.connect(handler)
+            if enabled is not None:
+                action.setEnabled(enabled)
+            menu.addAction(action)
 
     def _add_view_menu_actions(self, menu):
         """Add actions to View menu."""
@@ -143,7 +156,8 @@ class MainWindow(QMainWindow):
             ("Open", self.open_image),
             ("Open Multiple", self.open_multiple_images),
             (None, None),  # Separator
-            ("Clear", self.clear_canvas),
+            ("Delete", self.delete_selection),
+            ("Clear All", self.clear_canvas),
             (None, None),  # Separator
             ("Zoom In", self.canvas.zoom_in),
             ("Zoom Out", self.canvas.zoom_out),
@@ -167,6 +181,10 @@ class MainWindow(QMainWindow):
         # Image count label
         self.image_count_label = QLabel("Images: 0")
         self.status_bar.addPermanentWidget(self.image_count_label)
+
+        # Selected count label
+        self.selected_count_label = QLabel("Selected: 0")
+        self.status_bar.addPermanentWidget(self.selected_count_label)
 
         self.status_bar.showMessage("Ready - Drag and drop images or use File → Open")
 
@@ -204,6 +222,31 @@ class MainWindow(QMainWindow):
             self.loaded_files.append(Path(filepath))
             self._update_window_title()
 
+    def delete_selection(self):
+        """Delete selected image(s)."""
+        selected_count = self.canvas.get_selected_count()
+        if selected_count == 0:
+            QMessageBox.information(self, "No Selection",
+                                   "No images are selected. Select an image by clicking on it.")
+            return
+
+        # Confirm deletion
+        if selected_count == 1:
+            message = "Delete the selected image?"
+        else:
+            message = f"Delete {selected_count} selected images?"
+
+        reply = QMessageBox.question(
+            self, "Delete Selection", message,
+            QMessageBox.Yes | QMessageBox.No,
+            QMessageBox.No
+        )
+
+        if reply == QMessageBox.Yes:
+            self.canvas.delete_selected()
+            self._update_selection_count()
+            self.status_bar.showMessage(f"Deleted {selected_count} image(s)", 3000)
+
     def clear_canvas(self):
         """Clear all images from canvas."""
         if self.canvas.get_image_count() == 0:
@@ -220,6 +263,7 @@ class MainWindow(QMainWindow):
             self.canvas.clear_all()
             self.loaded_files.clear()
             self._update_window_title()
+            self._update_selection_count()
             self.status_bar.showMessage("Canvas cleared", 3000)
 
     def _update_window_title(self):
@@ -245,6 +289,38 @@ class MainWindow(QMainWindow):
             f"Loaded: {img_name} ({image_rect.width():.0f}×{image_rect.height():.0f})",
             3000
         )
+
+    def _on_image_removed(self, filepath: str):
+        """Handle image removed signal."""
+        # Remove from loaded files list
+        path = Path(filepath)
+        if path in self.loaded_files:
+            self.loaded_files.remove(path)
+
+        # Update image count
+        count = self.canvas.get_image_count()
+        self.image_count_label.setText(f"Images: {count}")
+        self._update_window_title()
+
+    def _update_selection_count(self):
+        """Update the selected count in status bar."""
+        selected_count = self.canvas.get_selected_count()
+        self.selected_count_label.setText(f"Selected: {selected_count}")
+
+    # Event handlers for selection changes
+    def mousePressEvent(self, event):
+        """Update selection count when clicking."""
+        super().mousePressEvent(event)
+        # Small delay to allow selection to update
+        from PySide6.QtCore import QTimer
+        QTimer.singleShot(10, self._update_selection_count)
+
+    def keyPressEvent(self, event):
+        """Handle key presses for delete."""
+        if event.key() == Qt.Key_Delete:
+            self.delete_selection()
+        else:
+            super().keyPressEvent(event)
 
     # Drag and drop support
     def dragEnterEvent(self, event):
