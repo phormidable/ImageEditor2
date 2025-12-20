@@ -101,15 +101,21 @@ class MainWindow(QMainWindow):
         actions = [
             ("&Delete Selection", QKeySequence.Delete, self.toolbox.delete_selection),
             ("Delete All Images", "Ctrl+Shift+D", self.toolbox.clear_canvas),
+            (None, None, None),  # Separator
+            ("Bring to &Front", "Ctrl+Shift+F", self.toolbox.move_to_front),
+            ("Send to &Back", "Ctrl+Shift+B", self.toolbox.move_to_back),
         ]
 
         for label, shortcut, handler in actions:
-            action = QAction(label, self)
-            if shortcut:
-                action.setShortcut(shortcut)
-            if handler:
-                action.triggered.connect(handler)
-            menu.addAction(action)
+            if label is None:
+                menu.addSeparator()
+            else:
+                action = QAction(label, self)
+                if shortcut:
+                    action.setShortcut(shortcut)
+                if handler:
+                    action.triggered.connect(handler)
+                menu.addAction(action)
 
     def _add_view_menu_actions(self, menu):
         """Add actions to View menu."""
@@ -160,6 +166,9 @@ class MainWindow(QMainWindow):
             (None, None),  # Separator
             ("Delete", self.toolbox.delete_selection),
             ("Clear All", self.toolbox.clear_canvas),
+            (None, None),  # Separator
+            ("Bring to Front", self.toolbox.move_to_front),
+            ("Send to Back", self.toolbox.move_to_back),
             (None, None),  # Separator
             ("Zoom In", self.canvas.zoom_in),
             ("Zoom Out", self.canvas.zoom_out),

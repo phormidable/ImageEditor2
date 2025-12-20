@@ -119,3 +119,57 @@ class MainWindowToolbox:
         count = self.canvas.get_image_count()
         self.main_window.image_count_label.setText(f"Images: {count}")
         self.main_window.update_window_title()
+
+    def move_to_front(self):
+        """Move selected image to front (highest z-value)."""
+        selected_items = self.canvas.scene.selectedItems()
+        if not selected_items:
+            QMessageBox.information(
+                self.main_window, "No Selection",
+                "No images are selected. Select an image by clicking on it."
+            )
+            return
+
+        # Find the highest current z-value
+        all_items = self.canvas.scene.items()
+        if not all_items:
+            return
+
+        max_z = max(item.zValue() for item in all_items)
+
+        # Set selected items to max_z + 1 (so they're on top)
+        for item in selected_items:
+            item.setZValue(max_z + 1)
+
+        # Update status
+        if len(selected_items) == 1:
+            self.main_window.status_bar.showMessage("Moved image to front", 2000)
+        else:
+            self.main_window.status_bar.showMessage(f"Moved {len(selected_items)} images to front", 2000)
+
+    def move_to_back(self):
+        """Move selected image to back (lowest z-value)."""
+        selected_items = self.canvas.scene.selectedItems()
+        if not selected_items:
+            QMessageBox.information(
+                self.main_window, "No Selection",
+                "No images are selected. Select an image by clicking on it."
+            )
+            return
+
+        # Find the lowest current z-value
+        all_items = self.canvas.scene.items()
+        if not all_items:
+            return
+
+        min_z = min(item.zValue() for item in all_items)
+
+        # Set selected items to min_z - 1 (so they're at the back)
+        for item in selected_items:
+            item.setZValue(min_z - 1)
+
+        # Update status
+        if len(selected_items) == 1:
+            self.main_window.status_bar.showMessage("Moved image to back", 2000)
+        else:
+            self.main_window.status_bar.showMessage(f"Moved {len(selected_items)} images to back", 2000)
