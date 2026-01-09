@@ -2,7 +2,7 @@
 Main application window for Image Compositor - UI definition only.
 """
 
-from PySide6.QtWidgets import QMainWindow, QStatusBar, QToolBar, QVBoxLayout, QWidget, QLabel
+from PySide6.QtWidgets import QMainWindow, QStatusBar, QToolBar, QVBoxLayout, QWidget, QLabel, QGraphicsView
 from PySide6.QtGui import QAction, QKeySequence
 from PySide6.QtCore import Qt
 
@@ -42,9 +42,15 @@ class MainWindow(QMainWindow):
 
         # Update toolbox reference now that canvas exists
         self.toolbox.canvas = self.canvas
+
         # Connect canvas signals to toolbox methods
         self.canvas.image_added.connect(self.toolbox.on_image_added)
         self.canvas.image_removed.connect(self.toolbox.on_image_removed)
+
+        # Connect mouse events for crop mode
+        self.canvas.mousePressEvent = self._handle_canvas_mouse_press
+        self.canvas.mouseMoveEvent = self._handle_canvas_mouse_move
+        self.canvas.mouseReleaseEvent = self._handle_canvas_mouse_release
 
         # Create UI components
         self._create_menus()
@@ -104,6 +110,8 @@ class MainWindow(QMainWindow):
             (None, None, None),  # Separator
             ("Bring to &Front", "Ctrl+Shift+F", self.toolbox.move_to_front),
             ("Send to &Back", "Ctrl+Shift+B", self.toolbox.move_to_back),
+            (None, None, None),  # Separator
+            ("&Crop Mode", "Ctrl+R", self.toolbox.toggle_crop_mode),  # NEW: Crop mode
         ]
 
         for label, shortcut, handler in actions:
@@ -170,6 +178,8 @@ class MainWindow(QMainWindow):
             ("Bring to Front", self.toolbox.move_to_front),
             ("Send to Back", self.toolbox.move_to_back),
             (None, None),  # Separator
+            ("Crop", self.toolbox.toggle_crop_mode),  # NEW: Crop button
+            (None, None),  # Separator
             ("Zoom In", self.canvas.zoom_in),
             ("Zoom Out", self.canvas.zoom_out),
             ("Actual Size", self.canvas.reset_zoom),
@@ -182,7 +192,24 @@ class MainWindow(QMainWindow):
             else:
                 action = QAction(label, self)
                 action.triggered.connect(handler)
+
+                # Make crop button checkable to show mode state
+                if label == "Crop":
+                    action.setCheckable(True)
+                    action.toggled.connect(self._on_crop_toggled)
+
                 toolbar.addAction(action)
+
+            # Store reference to crop action for updating
+        self.crop_action = toolbar.actions()[toolbar_actions.index(("Crop", self.toolbox.toggle_crop_mode))]
+
+    def _on_crop_toggled(self, checked):
+        """Handle crop button toggle."""
+        # Update button appearance
+        if checked:
+            self.crop_action.setText("Crop (ON)")
+        else:
+            self.crop_action.setText("Crop")
 
     def _create_status_bar(self):
         """Create and configure status bar."""
@@ -244,3 +271,30 @@ class MainWindow(QMainWindow):
     def _apply_stylesheet(self):
         """Apply the application stylesheet."""
         self.setStyleSheet(get_stylesheet())
+
+    def _handle_canvas_mouse_press(self, event):
+        """Handle mouse press on canvas."""
+        if self.toolbox.crop_mode:
+            self.toolbox.handle_crop_mouse_press(event)
+        else:
+            # Call original canvas mouse press event
+            QGraphicsView.mousePressEvent(self.canvas, event)
+
+        # Update selection count
+        self.update_selection_count()
+
+    def _handle_canvas_mouse_move(self, event):
+        """Handle mouse move on canvas."""
+        if self.toolbox.crop_mode:
+            self.toolbox.handle_crop_mouse_move(event)
+        else:
+            # Call original canvas mouse move event
+            QGraphicsView.mouseMoveEvent(self.canvas, event)
+
+    def _handle_canvas_mouse_release(self, event):
+        """Handle mouse release on canvas."""
+        if self.toolbox.crop_mode:
+            self.toolbox.handle_crop_mouse_release(event)
+        else:
+            # Call original canvas mouse release event
+            QGraphicsView.mouseReleaseEvent(self.canvas, event)

@@ -4,7 +4,9 @@ Toolbox containing business logic for MainWindow.
 
 from pathlib import Path
 from PySide6.QtWidgets import QFileDialog, QMessageBox
+from PySide6.QtCore import Qt, QPointF
 from .helpers import get_image_filter_string
+from PySide6.QtGui import QPen, QColor
 
 class MainWindowToolbox:
     """Contains business logic methods for MainWindow."""
@@ -13,6 +15,196 @@ class MainWindowToolbox:
         self.main_window = main_window
         self.canvas = main_window.canvas
         self.loaded_files = []
+
+        # Crop mode state
+        self.crop_mode = False
+        self.crop_rect_item = None
+        self.crop_start_pos = None
+
+    def toggle_crop_mode(self):
+        """Toggle crop mode on/off."""
+        self.crop_mode = not self.crop_mode
+
+        if self.crop_mode:
+            # Enter crop mode
+            self._enter_crop_mode()
+        else:
+            # Exit crop mode
+            self._exit_crop_mode()
+
+        # Update UI
+        self._update_crop_ui_state()
+
+    def _enter_crop_mode(self):
+        """Set up for crop mode."""
+        # Clear any existing crop rectangle
+        if self.crop_rect_item:
+            self.canvas.scene.removeItem(self.crop_rect_item)
+            self.crop_rect_item = None
+
+        # Check if there's a selected image
+        selected_items = self.canvas.scene.selectedItems()
+        print(f"[DEBUG] Selected items count: {len(selected_items)}")
+
+        if not selected_items:
+            QMessageBox.information(
+                self.main_window, "No Selection",
+                "Select an image first to crop it."
+            )
+            self.crop_mode = False
+            self._update_crop_ui_state()
+            return
+
+        # For now, just work with the first selected image
+        self.selected_image = selected_items[0]
+
+        # Print image info for debugging
+        if hasattr(self.selected_image, 'filepath'):
+            print(f"[DEBUG] Selected image: {self.selected_image.filepath}")
+
+        img_rect = self.selected_image.boundingRect()
+        scene_rect = self.selected_image.sceneBoundingRect()
+        print(f"[DEBUG] Image local bounds: {img_rect}")
+        print(f"[DEBUG] Image scene bounds: {scene_rect}")
+        print(f"[DEBUG] Image position in scene: {self.selected_image.pos()}")
+
+        # Change cursor to crosshair
+        self.original_cursor = self.canvas.cursor()
+        self.canvas.setCursor(Qt.CrossCursor)
+
+        # Show status message
+        self.main_window.status_bar.showMessage(
+            "Crop Mode: Click and drag to select area. Click Crop button again to exit.",
+            3000
+        )
+
+    def _exit_crop_mode(self):
+        """Clean up after crop mode."""
+        # Remove crop rectangle if it exists
+        if self.crop_rect_item:
+            self.canvas.scene.removeItem(self.crop_rect_item)
+            self.crop_rect_item = None
+
+        # Restore original cursor
+        if hasattr(self, 'original_cursor'):
+            self.canvas.setCursor(self.original_cursor)
+
+        # Clear selection
+        self.crop_start_pos = None
+        self.selected_image = None
+
+        # Show status message
+        self.main_window.status_bar.showMessage("Crop mode exited", 2000)
+
+    def _update_crop_ui_state(self):
+        """Update UI to reflect crop mode state."""
+        # This will be called from main_window to update button states
+        pass
+
+    def handle_crop_mouse_press(self, event):
+        """Handle mouse press in crop mode."""
+        if not self.crop_mode:
+            return
+
+        # Get position in scene coordinates
+        scene_pos = self.canvas.mapToScene(event.pos())
+        print(f"[DEBUG] Mouse press - Screen: {event.pos()}, Scene: {scene_pos}")
+
+        # Check if click is within the selected image (using scene coordinates)
+        if self.selected_image:
+            # Get image bounds in SCENE coordinates
+            scene_img_rect = self.selected_image.sceneBoundingRect()
+            print(f"[DEBUG] Image scene bounds: {scene_img_rect}")
+
+            # Check if point is within the image bounds in SCENE coordinates
+            contains = scene_img_rect.contains(scene_pos)
+            print(f"[DEBUG] Contains point? {contains}")
+
+            if not contains:
+                print(f"[DEBUG] Click outside image bounds")
+                return
+
+        # Start new crop rectangle (use scene coordinates for rectangle)
+        self.crop_start_pos = scene_pos
+        print(f"[DEBUG] Crop start position set: {self.crop_start_pos}")
+
+        # Create or update crop rectangle
+        if self.crop_rect_item:
+            self.canvas.scene.removeItem(self.crop_rect_item)
+
+        # Create dashed rectangle
+
+        pen = QPen(QColor(255, 0, 0))  # Red color
+        pen.setWidth(2)
+        pen.setStyle(Qt.DashLine)
+
+        self.crop_rect_item = self.canvas.scene.addRect(
+            scene_pos.x(), scene_pos.y(), 0, 0, pen
+        )
+
+        # Make sure rectangle is on top of everything
+        self.crop_rect_item.setZValue(1000)
+
+        print(f"[DEBUG] Crop rectangle created at: {scene_pos}")
+
+    def handle_crop_mouse_move(self, event):
+        """Handle mouse move in crop mode."""
+        if not self.crop_mode or not self.crop_start_pos:
+            return
+
+        # Get current position in scene coordinates
+        scene_pos = self.canvas.mapToScene(event.pos())
+
+        print(f"[DEBUG] Mouse move - Scene: {scene_pos}")
+
+        # Calculate rectangle dimensions
+        x1, y1 = self.crop_start_pos.x(), self.crop_start_pos.y()
+        x2, y2 = scene_pos.x(), scene_pos.y()
+
+        # Ensure rectangle stays within image bounds (using scene coordinates)
+        if self.selected_image:
+            scene_img_rect = self.selected_image.sceneBoundingRect()
+            print(f"[DEBUG] Image scene bounds: {scene_img_rect}")
+
+            x2 = max(scene_img_rect.left(), min(x2, scene_img_rect.right()))
+            y2 = max(scene_img_rect.top(), min(y2, scene_img_rect.bottom()))
+
+            print(f"[DEBUG] Constrained position: ({x2}, {y2})")
+
+        # Update rectangle
+        rect = self.crop_rect_item.rect()
+        rect.setTopLeft(QPointF(min(x1, x2), min(y1, y2)))
+        rect.setBottomRight(QPointF(max(x1, x2), max(y1, y2)))
+        self.crop_rect_item.setRect(rect)
+
+        print(f"[DEBUG] Crop rectangle updated: {rect}")
+
+    def handle_crop_mouse_release(self, event):
+        """Handle mouse release in crop mode."""
+        if not self.crop_mode or not self.crop_start_pos:
+            return
+
+        # Get release position
+        scene_pos = self.canvas.mapToScene(event.pos())
+        print(f"[DEBUG] Mouse release - Scene: {scene_pos}")
+
+        if self.selected_image:
+            item_pos = self.selected_image.mapFromScene(scene_pos)
+            print(f"[DEBUG] Mouse release - Item: {item_pos}")
+
+        # Crop rectangle is now complete
+        if self.crop_rect_item:
+            rect = self.crop_rect_item.rect()
+            print(f"[DEBUG] Final crop rectangle: {rect}")
+            print(f"[DEBUG] Crop rectangle dimensions: {rect.width():.0f}×{rect.height():.0f}")
+
+            self.main_window.status_bar.showMessage(
+                f"Crop area selected: {rect.width():.0f}×{rect.height():.0f}",
+                2000
+            )
+
+        self.crop_start_pos = None
+        print(f"[DEBUG] Crop start position cleared")
 
     def open_image(self):
         """Open single image file dialog."""
@@ -101,7 +293,6 @@ class MainWindowToolbox:
         self.main_window.image_count_label.setText(f"Images: {count}")
 
         # Show temporary message
-        from pathlib import Path
         img_name = Path(filename).name
         self.main_window.status_bar.showMessage(
             f"Loaded: {img_name} ({image_rect.width():.0f}×{image_rect.height():.0f})",
@@ -119,7 +310,6 @@ class MainWindowToolbox:
         count = self.canvas.get_image_count()
         self.main_window.image_count_label.setText(f"Images: {count}")
         self.main_window.update_window_title()
-
 
     def move_to_front(self):
         self.move_to("front")

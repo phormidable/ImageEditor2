@@ -72,6 +72,7 @@ def show_shortcuts_dialog(parent) -> None:
     <tr><td><b>Ctrl+Shift+D</b></td><td>Delete all images</td></tr>
     <tr><td><b>Ctrl+Shift+F</b></td><td>Bring to front</td></tr>
     <tr><td><b>Ctrl+Shift+B</b></td><td>Send to back</td></tr>
+    <tr><td><b>Ctrl+R</b></td><td>Toggle crop mode</td></tr>
     <tr><td><b>Ctrl+E</b></td><td>Export (coming soon)</td></tr>
     <tr><td><b>Ctrl++</b></td><td>Zoom in</td></tr>
     <tr><td><b>Ctrl+-</b></td><td>Zoom out</td></tr>
