@@ -47,7 +47,7 @@ class CanvasView(QGraphicsView):
         """Initialize the scene."""
         self.scene = QGraphicsScene()
         self.setScene(self.scene)
-        self.setSceneRect(-500, -500, 1000, 1000)
+        self.scene.setSceneRect(-500, -500, 1000, 1000)
         self._add_welcome_message()
 
     def _setup_properties(self):

@@ -5,8 +5,9 @@ Toolbox containing business logic for MainWindow.
 from pathlib import Path
 from PySide6.QtWidgets import QFileDialog, QMessageBox
 from PySide6.QtCore import Qt, QPointF
-from .helpers import get_image_filter_string
 from PySide6.QtGui import QPen, QColor
+
+from .helpers import get_image_filter_string
 
 class MainWindowToolbox:
     """Contains business logic methods for MainWindow."""
@@ -23,16 +24,22 @@ class MainWindowToolbox:
 
     def toggle_crop_mode(self):
         """Toggle crop mode on/off."""
-        self.crop_mode = not self.crop_mode
-
+        # If crop mode is on, turn it off
         if self.crop_mode:
-            # Enter crop mode
-            self._enter_crop_mode()
-        else:
-            # Exit crop mode
+            self.crop_mode = False
             self._exit_crop_mode()
+            self._update_crop_ui_state()
+            return
 
-        # Update UI
+        # Turning on: require a selected image
+        if not self.canvas.scene.selectedItems():
+            QMessageBox.information(self.main_window, "No Selection","Select an image first to crop it.")
+            # The QAction auto-toggled on click; put the button back
+            self._update_crop_ui_state()
+            return
+
+        self.crop_mode = True
+        self._enter_crop_mode()
         self._update_crop_ui_state()
 
     def _enter_crop_mode(self):
@@ -45,15 +52,6 @@ class MainWindowToolbox:
         # Check if there's a selected image
         selected_items = self.canvas.scene.selectedItems()
         print(f"[DEBUG] Selected items count: {len(selected_items)}")
-
-        if not selected_items:
-            QMessageBox.information(
-                self.main_window, "No Selection",
-                "Select an image first to crop it."
-            )
-            self.crop_mode = False
-            self._update_crop_ui_state()
-            return
 
         # For now, just work with the first selected image
         self.selected_image = selected_items[0]
@@ -73,10 +71,7 @@ class MainWindowToolbox:
         self.canvas.setCursor(Qt.CrossCursor)
 
         # Show status message
-        self.main_window.status_bar.showMessage(
-            "Crop Mode: Click and drag to select area. Click Crop button again to exit.",
-            3000
-        )
+        self.main_window.status_bar.showMessage("Crop Mode: Click and drag to select area. Click Crop button again to exit.", 3000)
 
     def _exit_crop_mode(self):
         """Clean up after crop mode."""
@@ -98,8 +93,8 @@ class MainWindowToolbox:
 
     def _update_crop_ui_state(self):
         """Update UI to reflect crop mode state."""
-        # This will be called from main_window to update button states
-        pass
+        if hasattr(self.main_window, 'crop_action'):
+            self.main_window.crop_action.setChecked(self.crop_mode)
 
     def handle_crop_mouse_press(self, event):
         """Handle mouse press in crop mode."""
@@ -138,9 +133,7 @@ class MainWindowToolbox:
         pen.setWidth(2)
         pen.setStyle(Qt.DashLine)
 
-        self.crop_rect_item = self.canvas.scene.addRect(
-            scene_pos.x(), scene_pos.y(), 0, 0, pen
-        )
+        self.crop_rect_item = self.canvas.scene.addRect(scene_pos.x(), scene_pos.y(), 0, 0, pen)
 
         # Make sure rectangle is on top of everything
         self.crop_rect_item.setZValue(1000)
@@ -198,10 +191,7 @@ class MainWindowToolbox:
             print(f"[DEBUG] Final crop rectangle: {rect}")
             print(f"[DEBUG] Crop rectangle dimensions: {rect.width():.0f}×{rect.height():.0f}")
 
-            self.main_window.status_bar.showMessage(
-                f"Crop area selected: {rect.width():.0f}×{rect.height():.0f}",
-                2000
-            )
+            self.main_window.status_bar.showMessage(f"Crop area selected: {rect.width():.0f}×{rect.height():.0f}", 2000)
 
         self.crop_start_pos = None
         print(f"[DEBUG] Crop start position cleared")
@@ -221,16 +211,12 @@ class MainWindowToolbox:
 
     def _get_filepath_single(self):
         """Get single file path from dialog."""
-        filepath, _ = QFileDialog.getOpenFileName(
-            self.main_window, "Open Image", "", get_image_filter_string()
-        )
+        filepath, _ = QFileDialog.getOpenFileName(self.main_window, "Open Image", "", get_image_filter_string())
         return filepath if filepath else None
 
     def _get_filepaths_multiple(self):
         """Get multiple file paths from dialog."""
-        filepaths, _ = QFileDialog.getOpenFileNames(
-            self.main_window, "Open Multiple Images", "", get_image_filter_string()
-        )
+        filepaths, _ = QFileDialog.getOpenFileNames(self.main_window, "Open Multiple Images", "", get_image_filter_string())
         return filepaths if filepaths else []
 
     def _load_image_file(self, filepath):
@@ -244,10 +230,7 @@ class MainWindowToolbox:
         """Delete selected image(s)."""
         selected_count = self.canvas.get_selected_count()
         if selected_count == 0:
-            QMessageBox.information(
-                self.main_window, "No Selection",
-                "No images are selected. Select an image by clicking on it."
-            )
+            QMessageBox.information(self.main_window, "No Selection", "No images are selected. Select an image by clicking on it.")
             return
 
         # Confirm deletion
@@ -294,10 +277,7 @@ class MainWindowToolbox:
 
         # Show temporary message
         img_name = Path(filename).name
-        self.main_window.status_bar.showMessage(
-            f"Loaded: {img_name} ({image_rect.width():.0f}×{image_rect.height():.0f})",
-            3000
-        )
+        self.main_window.status_bar.showMessage(f"Loaded: {img_name} ({image_rect.width():.0f}×{image_rect.height():.0f})", 3000)
 
     def on_image_removed(self, filepath):
         """Handle image removed signal."""
@@ -326,10 +306,7 @@ class MainWindowToolbox:
 
         selected_items = self.canvas.scene.selectedItems()
         if not selected_items:
-            QMessageBox.information(
-                self.main_window, "No Selection",
-                "No images are selected. Select an image by clicking on it."
-            )
+            QMessageBox.information(self.main_window, "No Selection", "No images are selected. Select an image by clicking on it.")
             return
 
         if front_or_back == "front":
