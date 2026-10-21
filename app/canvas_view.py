@@ -55,6 +55,7 @@ class CanvasView(QGraphicsView):
         self.image_items = []
         self.current_zoom = 1.0
         self.welcome_text_item = None
+        self.current_zoom = 1.0
 
     def _add_welcome_message(self):
         """Add initial welcome text to the canvas."""
@@ -96,6 +97,28 @@ class CanvasView(QGraphicsView):
         except Exception as e:
             print(f"Failed to load image: {str(e)}")
             return False
+
+    def add_image_from_pixmap(self, pixmap: QPixmap, position: QPointF = None,
+                              name: str = "") -> "ImageItem | None":
+        """Add an image directly from a QPixmap (no file on disk).
+
+        Returns the created ImageItem, or None on failure.
+        """
+        if pixmap.isNull():
+            return None
+
+        try:
+            image_item = self._create_image_item(pixmap, name, position)
+            self.scene.addItem(image_item)
+            self.image_items.append(image_item)
+
+            self._on_image_added()
+            img_rect = image_item.boundingRect()
+            self.image_added.emit(name, img_rect, image_item.pos())
+            return image_item
+        except Exception as e:
+            print(f"Failed to add image from pixmap: {str(e)}")
+            return None
 
     def _create_image_item(self, pixmap: QPixmap, filepath: str,
                           position: QPointF = None) -> ImageItem:

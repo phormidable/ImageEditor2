@@ -53,6 +53,7 @@ def show_about_dialog(parent) -> None:
         <li>Zoom with Ctrl+Mouse Wheel or buttons</li>
         <li>Actual size (100%) and fit to window</li>
         <li>Multiple images on canvas</li>
+        <li>Extract crop area to a new image with Ctrl+K</li>
     </ul>
     <p>Use <b>Ctrl+0</b> to fit to window, <b>Ctrl+1</b> for actual size.</p>
     """
@@ -73,6 +74,7 @@ def show_shortcuts_dialog(parent) -> None:
     <tr><td><b>Ctrl+Shift+F</b></td><td>Bring to front</td></tr>
     <tr><td><b>Ctrl+Shift+B</b></td><td>Send to back</td></tr>
     <tr><td><b>Ctrl+R</b></td><td>Toggle crop mode</td></tr>
+    <tr><td><b>Ctrl+K</b></td><td>Crop area to new image</td></tr>
     <tr><td><b>Ctrl+E</b></td><td>Export (coming soon)</td></tr>
     <tr><td><b>Ctrl++</b></td><td>Zoom in</td></tr>
     <tr><td><b>Ctrl+-</b></td><td>Zoom out</td></tr>

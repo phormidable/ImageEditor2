@@ -112,6 +112,7 @@ class MainWindow(QMainWindow):
             ("Send to &Back", "Ctrl+Shift+B", self.toolbox.move_to_back),
             (None, None, None),  # Separator
             ("&Crop Mode", "Ctrl+R", self.toolbox.toggle_crop_mode),  # NEW: Crop mode
+            ("Crop to New &Image", "Ctrl+K", self.toolbox.crop_to_new_image),
         ]
 
         for label, shortcut, handler in actions:

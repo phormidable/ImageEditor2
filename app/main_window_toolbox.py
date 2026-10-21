@@ -4,7 +4,7 @@ Toolbox containing business logic for MainWindow.
 
 from pathlib import Path
 from PySide6.QtWidgets import QFileDialog, QMessageBox
-from PySide6.QtCore import Qt, QPointF
+from PySide6.QtCore import Qt, QPointF, QRect
 from PySide6.QtGui import QPen, QColor
 
 from .helpers import get_image_filter_string
@@ -196,6 +196,85 @@ class MainWindowToolbox:
         self.crop_start_pos = None
         print(f"[DEBUG] Crop start position cleared")
 
+    def crop_to_new_image(self):
+        """Extract the current crop region to a new image on the canvas (Ctrl+K)."""
+        if not self.crop_mode:
+            self.main_window.status_bar.showMessage(
+                "Enable crop mode first (Ctrl+R)", 3000)
+            return
+
+        # Guard against dangling references (user may have deleted the item)
+        if not self.crop_rect_item or self.crop_rect_item.scene() is None:
+            self.main_window.status_bar.showMessage(
+                "Drag on an image to select a crop area first", 3000)
+            return
+
+        if not self.selected_image or self.selected_image.scene() is None:
+            self.main_window.status_bar.showMessage(
+                "No source image to crop", 3000)
+            return
+
+        scene_rect = self.crop_rect_item.rect()
+        if scene_rect.width() < 1 or scene_rect.height() < 1:
+            self.main_window.status_bar.showMessage(
+                "Crop area is too small", 3000)
+            return
+
+        # scene -> item -> pixel coords
+        item_rect = self.selected_image.mapFromScene(scene_rect).boundingRect()
+
+        source_pixmap = self.selected_image.pixmap()
+        item_bounds = self.selected_image.boundingRect()
+        if item_bounds.width() > 0 and item_bounds.height() > 0:
+            scale_x = source_pixmap.width() / item_bounds.width()
+            scale_y = source_pixmap.height() / item_bounds.height()
+        else:
+            scale_x = scale_y = 1.0
+
+        pixel_rect = QRect(
+            int(item_rect.x() * scale_x),
+            int(item_rect.y() * scale_y),
+            int(item_rect.width() * scale_x),
+            int(item_rect.height() * scale_y),
+        ).intersected(source_pixmap.rect())
+
+        if pixel_rect.isEmpty():
+            self.main_window.status_bar.showMessage(
+                "Crop area is empty", 3000)
+            return
+
+        # Build the cropped pixmap
+        cropped_pixmap = source_pixmap.copy(pixel_rect)
+
+        # Descriptive name for the synthetic item
+        source_path = getattr(self.selected_image, 'filepath', '') or ''
+        if source_path:
+            new_name = f"{Path(source_path).stem} (cropped)"
+        else:
+            new_name = "Cropped image"
+
+        # Place the new image near the crop so it's clearly visible
+        new_position = scene_rect.topLeft() + QPointF(30, 30)
+        new_item = self.canvas.add_image_from_pixmap(
+            cropped_pixmap, new_position, new_name)
+
+        if not new_item:
+            self.main_window.status_bar.showMessage(
+                "Failed to create cropped image", 3000)
+            return
+
+        # Keep the new image above the source so it's visible
+        new_item.setZValue(self.selected_image.zValue() + 1)
+
+        # Clear the crop rectangle so the user can drag the next area right away
+        self.canvas.scene.removeItem(self.crop_rect_item)
+        self.crop_rect_item = None
+        self.crop_start_pos = None
+
+        self.main_window.status_bar.showMessage(
+            f"Created {new_name} ({pixel_rect.width()}×{pixel_rect.height()})",
+            3000)
+
     def open_image(self):
         """Open single image file dialog."""
         filepath = self._get_filepath_single()
@@ -266,7 +345,7 @@ class MainWindowToolbox:
             self.canvas.clear_all()
             self.loaded_files.clear()
             self.main_window.update_window_title()
-            self.main_window.pdate_selection_count()
+            self.main_window.update_selection_count()
             self.main_window.status_bar.showMessage("Canvas cleared", 3000)
 
     def on_image_added(self, filename, image_rect, _position):
